@@ -94,6 +94,7 @@ class JenkinsManager:
 
         logger.info(f"Finished triggering jobs took {datetime.datetime.now() - start_time}")
 
+    @retry_on_errors((requests.exceptions.ConnectionError,), count=5, timeout=5)
     def thread_trigger_job(self, job):
         """
         Function to trigger single job.
