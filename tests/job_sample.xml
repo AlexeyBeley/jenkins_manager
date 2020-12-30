@@ -25,7 +25,7 @@
   <builders>
     <hudson.tasks.Shell>
       <command>#!/bin/bash
-ret=$((1 + $RANDOM % 10))
+ret=$((1 + $RANDOM % 60))
 echo &quot;Goodbye world for $ret seconds!&quot;
 sleep $ret
 if (( $ret &gt; 7 ))
