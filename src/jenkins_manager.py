@@ -1,6 +1,7 @@
 """
 Module to handle jenkins server.
 """
+import os
 import datetime
 import time
 import logging
@@ -8,6 +9,7 @@ import threading
 from collections import defaultdict
 import jenkins
 import requests
+
 
 handler = logging.StreamHandler()
 formatter = logging.Formatter("[%(asctime)s] %(levelname)s:%(name)s:%(message)s")
@@ -51,6 +53,7 @@ class JenkinsManager:
 
     def __init__(self, jenkins_address, username, password, protocol="https", port="443", timeout=10):
         self.server = jenkins.Jenkins(f"{protocol}://{jenkins_address}:{port}", username=username, password=password, timeout=timeout)
+        self.hostname = jenkins_address
 
     def execute_jobs(self, jobs):
         """
@@ -196,6 +199,8 @@ class JenkinsManager:
         """
         start_time = datetime.datetime.now()
         while any([job.build_status is None for job in jobs]) and (datetime.datetime.now() - start_time).seconds < self.JOBS_FINISH_TIMEOUT:
+            logger.info(f"First {(datetime.datetime.now() - start_time).seconds}")
+            logger.info(f"Second {self.JOBS_FINISH_TIMEOUT}")
             try:
                 self.update_builds_statuses(jobs)
             except jenkins.JenkinsException as jenkins_error:
@@ -269,20 +274,41 @@ class JenkinsManager:
         """
         report_lines = []
         for job in jobs:
-            if job.build_status not in ["SUCCESS"]:
-                line = f"Error: Job failed to finish: {self.BUILDS_PER_JOB[job.name][job.build_id]['url']}"
+            if job.build_status is None:
+                if job.build_id is None:
+                    line = f"Error: Job failed to start job: '{job.name}': {job.get_request_parameters()}"
+                    report_lines.append(line)
+                    continue
+                line = f"Error: Waiting timeout reached job: '{job.name}': {self.BUILDS_PER_JOB[job.name][job.build_id]['url']}"
+                report_lines.append(line)
+            elif job.build_status not in ["SUCCESS"]:
+                line = f"Error: Job: '{job.name}' failed to finish [{job.build_status}]: {self.BUILDS_PER_JOB[job.name][job.build_id]['url']}"
                 report_lines.append(line)
                 continue
         return "\n".join(report_lines)
 
-    def get_job_config(self, job, file_output):
+    def get_job_config(self, job_name):
         """
-        Fetch job's configuration. XML string returned.
-        :param job:
+        Fetch job's configuration. XML string returned
+        :param job_name:
+        :return:
+        """
+        str_job_xml = self.server.get_job_config(job_name)
+        return str_job_xml
+
+    def save_job_config(self, job_name, file_output):
+        """
+        Fetch job's configuration and save it to file.
+        :param job_name:
         :param file_output:
         :return:
         """
-        str_job_xml = self.server.get_job_config(job.name)
+        try:
+            str_job_xml = self.get_job_config(job_name)
+        except jenkins.NotFoundException as exception_received:
+            logger.error(repr(exception_received))
+            return
+
         with open(file_output, "w+") as file_handler:
             file_handler.write(str_job_xml)
 
@@ -327,7 +353,7 @@ class JenkinsManager:
 
         :return:
         """
-        jobs = self.server.get_all_jobs()
+        jobs = self.get_all_jobs()
         now = datetime.datetime.now()
         time_limit = datetime.timedelta(days=30)
         lst_ret = []
@@ -361,3 +387,29 @@ class JenkinsManager:
 
         lst_ret = [x[0] for x in sorted(lst_ret_exceeded_time, key=lambda x: x[1], reverse=True)] + lst_ret
         return "\n".join(lst_ret)
+
+    @retry_on_errors((requests.exceptions.ConnectionError,), count=5, timeout=5)
+    def get_all_jobs(self):
+        """
+        Get all jobs' overview information.
+        :return:
+        """
+        job_dicts = self.server.get_all_jobs()
+        return job_dicts
+
+    def backup_jobs(self, backups_dir):
+        """
+        Save all jobs' cnfigs in separate files.
+
+        :param backups_dir:
+        :return:
+        """
+        os.makedirs(backups_dir, exist_ok=True)
+
+        backup_dir_name = self.hostname.replace(".", "_")
+        backup_dir_path = os.path.join(backups_dir, backup_dir_name)
+        os.makedirs(backup_dir_path, exist_ok=True)
+        for job in self.get_all_jobs():
+            logger.info(f"Start backing up job {job['name']}")
+            self.save_job_config(job["name"], os.path.join(backup_dir_path, f"{job['name']}.xml"))
+            logger.info(f"End backing up job '{job['name']}'")

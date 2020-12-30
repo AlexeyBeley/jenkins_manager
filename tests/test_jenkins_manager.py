@@ -14,7 +14,7 @@ from jenkins_manager import JenkinsManager
 from jenkins_job import JenkinsJob
 
 
-qa = {"address": "", "protocol": "http", "port": "8080", "username": "horey", "password": "" }
+qa = {"address": "", "protocol": "http", "port": "8080", "username": "horey", "password": ""}
 active = qa
 jenkins_manager = JenkinsManager(active["address"], active["username"], active["password"], protocol=active["protocol"], port=active["port"], timeout=60)
 
@@ -82,11 +82,20 @@ def test_get_job_config():
     :return:
     """
     job = JenkinsJob("Horey_Test_Project_1", {})
-    report = jenkins_manager.get_job_config(job, "job_sample.xml")
-    print(report)
+    conf_xml = jenkins_manager.get_job_config(job.name)
+    print(conf_xml)
 
 
-def test_create_job():
+def test_save_job_config():
+    """
+    Test get single job configuration.
+    :return:
+    """
+    job = JenkinsJob("Horey_Test_Project_1", {})
+    jenkins_manager.save_job_config(job.name, "./output.txt")
+
+
+def test_create_jobs():
     """
     Create the jobs to be tested.
     """
@@ -102,3 +111,9 @@ def test_delete_jobs():
     """
     jobs = [JenkinsJob(f"Horey_Test_Project_{i}", {}, uid_parameter_name="data") for i in range(1, 5)]
     jenkins_manager.delete_jobs(jobs)
+
+
+def test_backup_jobs():
+    jenkins_manager.backup_jobs("./backups")
+
+

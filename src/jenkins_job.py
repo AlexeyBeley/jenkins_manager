@@ -11,6 +11,14 @@ class JenkinsJob:
     """
 
     def __init__(self, name, parameters, uid_parameter_name=None):
+        """
+        Uid_parameter_name - for jobs being able to be uniquely identified by it.
+        For more info check Readme
+
+        :param name:
+        :param parameters:
+        :param uid_parameter_name:
+        """
         self.name = name
         self.parameters = parameters
         self.queue_item_id = None
