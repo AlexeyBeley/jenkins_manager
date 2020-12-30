@@ -199,8 +199,6 @@ class JenkinsManager:
         """
         start_time = datetime.datetime.now()
         while any([job.build_status is None for job in jobs]) and (datetime.datetime.now() - start_time).seconds < self.JOBS_FINISH_TIMEOUT:
-            logger.info(f"First {(datetime.datetime.now() - start_time).seconds}")
-            logger.info(f"Second {self.JOBS_FINISH_TIMEOUT}")
             try:
                 self.update_builds_statuses(jobs)
             except jenkins.JenkinsException as jenkins_error:
